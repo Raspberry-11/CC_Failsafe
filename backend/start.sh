@@ -1,5 +1,5 @@
 #!/bin/bash
-# Run from the Avni/ root directory:  bash backend/start.sh
+# Run from the failsafe/ root directory:  bash backend/start.sh
 cd "$(dirname "$0")/.."
 source .venv/bin/activate
 cd backend
