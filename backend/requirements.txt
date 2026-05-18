@@ -13,4 +13,4 @@ pandas
 numpy
 joblib
 matplotlib
-seaborn
+seaborns

@@ -84,12 +84,19 @@ def engineer(df: pd.DataFrame, stage: str) -> pd.DataFrame:
     return d
 
 
-def _xgb_params(stage: str) -> dict:
-    # Slightly more regularisation for the PRE model since the signal is weaker
+def _xgb_params(stage: str, y_train: pd.Series | None = None) -> dict:
+    # Slightly more regularisation for the PRE model since the signal is weaker.
+    # Also up-weight the at-risk class so recall isn't crushed by imbalance —
+    # only for PRE, where the signal is weakest and recall matters most.
     if stage == "pre":
-        return dict(n_estimators=400, max_depth=3, learning_rate=0.04,
-                    subsample=0.8, colsample_bytree=0.8,
-                    reg_lambda=2.0, min_child_weight=3)
+        params = dict(n_estimators=400, max_depth=3, learning_rate=0.04,
+                      subsample=0.8, colsample_bytree=0.8,
+                      reg_lambda=2.0, min_child_weight=3)
+        if y_train is not None:
+            neg, pos = int((y_train == 0).sum()), int((y_train == 1).sum())
+            if pos > 0:
+                params["scale_pos_weight"] = (neg / pos) * 1.3
+        return params
     return dict(n_estimators=400, max_depth=4, learning_rate=0.05,
                 subsample=0.85, colsample_bytree=0.85,
                 reg_lambda=1.0, min_child_weight=2)
@@ -102,7 +109,7 @@ def train_one(df_stage: pd.DataFrame, stage: str, seed: int = 42) -> dict:
         X, y, test_size=0.2, random_state=seed, stratify=y
     )
 
-    params = _xgb_params(stage)
+    params = _xgb_params(stage, y_train)
     common = dict(
         enable_categorical=True, tree_method="hist",
         eval_metric="logloss", random_state=seed, n_jobs=-1,
@@ -124,7 +131,10 @@ def train_one(df_stage: pd.DataFrame, stage: str, seed: int = 42) -> dict:
 
     y_prob_raw = raw.predict_proba(X_test)[:, 1]
     y_prob_cal = cal.predict_proba(X_test)[:, 1]
-    y_pred = (y_prob_cal >= 0.5).astype(int)
+    # Lower decision threshold for PRE — flagging at-risk students early is
+    # higher-value than the extra false positives it produces.
+    threshold = 0.35 if stage == "pre" else 0.5
+    y_pred = (y_prob_cal >= threshold).astype(int)
 
     metrics = {
         "roc_auc":   float(roc_auc_score(y_test, y_prob_cal)),
