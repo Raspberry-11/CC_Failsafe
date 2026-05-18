@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FAILSAFE — Predict</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="page">
+
+<!-- Navbar -->
+<nav>
+  <div class="container inner">
+    <a href="dashboard.html" class="brand mono">FAILSAFE</a>
+    <div style="display:flex;align-items:center;">
+      <div class="links">
+        <a href="dashboard.html">Dashboard</a>
+        <a href="predict.html" class="active">New Prediction</a>
+      </div>
+      <span id="nav-user"></span>
+      <button id="btn-logout" onclick="logout()">Logout</button>
+    </div>
+  </div>
+</nav>
+
+<main class="container" style="padding-bottom:60px;">
+  <div class="page-header">
+    <div>
+      <h2>Student Risk Prediction</h2>
+      <div class="sub">Fill in the student details — the model will predict failure risk and generate an intervention plan.</div>
+    </div>
+  </div>
+
+  <!-- Split layout: form left, result right -->
+  <div style="display:grid;grid-template-columns:1fr 380px;gap:24px;align-items:start;">
+
+    <!-- ── Form ─────────────────────────────────────────────────────────── -->
+    <form id="predict-form" onsubmit="handlePredict(event)">
+
+      <!-- Section: Student Info -->
+      <div class="card mb-24">
+        <div class="section-title">Student Information</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Student Name</label>
+            <input type="text" name="student_name" placeholder="e.g. Rahul Verma" required />
+          </div>
+          <div class="form-group">
+            <label>Subject</label>
+            <select name="subject">
+              <option value="math">Mathematics</option>
+              <option value="portuguese">Portuguese</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>School</label>
+            <select name="school">
+              <option value="GP">Gabriel Pereira (GP)</option>
+              <option value="MS">Mousinho da Silveira (MS)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Sex</label>
+            <select name="sex">
+              <option value="F">Female</option>
+              <option value="M">Male</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Age</label>
+            <input type="number" name="age" value="17" min="15" max="22" required />
+          </div>
+          <div class="form-group">
+            <label>Address</label>
+            <select name="address">
+              <option value="U">Urban</option>
+              <option value="R">Rural</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section: Academic Performance -->
+      <div class="card mb-24">
+        <div class="section-title">Academic Performance</div>
+        <div class="sub" style="margin-bottom:14px;">
+          Leave G1 / G2 blank if you're predicting earlier in the semester —
+          the system will automatically run every model that fits the inputs you provide.
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>G1 — First Period Grade (0–20) <span class="text-muted">— optional</span></label>
+            <input type="number" name="G1" placeholder="leave blank for start-of-semester" min="0" max="20" />
+          </div>
+          <div class="form-group">
+            <label>G2 — Second Period Grade (0–20) <span class="text-muted">— optional</span></label>
+            <input type="number" name="G2" placeholder="leave blank if G2 not yet available" min="0" max="20" />
+          </div>
+          <div class="form-group">
+            <label>Absences</label>
+            <input type="number" name="absences" placeholder="0–93" min="0" max="93" value="0" required />
+          </div>
+          <div class="form-group">
+            <label>Study Time (per week)</label>
+            <select name="studytime">
+              <option value="1">Less than 2 hours</option>
+              <option value="2" selected>2 to 5 hours</option>
+              <option value="3">5 to 10 hours</option>
+              <option value="4">More than 10 hours</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Past Class Failures</label>
+            <select name="failures">
+              <option value="0" selected>None (0)</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3 or more</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Travel Time to School</label>
+            <select name="traveltime">
+              <option value="1" selected>Less than 15 min</option>
+              <option value="2">15–30 min</option>
+              <option value="3">30–60 min</option>
+              <option value="4">More than 1 hour</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-grid mt-16">
+          <div class="form-group">
+            <label>School Support (Extra Classes)</label>
+            <select name="schoolsup">
+              <option value="no" selected>No</option>
+              <option value="yes">Yes</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Extra Paid Classes</label>
+            <select name="paid">
+              <option value="no" selected>No</option>
+              <option value="yes">Yes</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Reason for Choosing School</label>
+            <select name="reason">
+              <option value="course">Course preference</option>
+              <option value="home">Close to home</option>
+              <option value="reputation" selected>School reputation</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Wants Higher Education</label>
+            <select name="higher">
+              <option value="yes" selected>Yes</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section: Family Background -->
+      <div class="card mb-24">
+        <div class="section-title">Family Background</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Family Size</label>
+            <select name="famsize">
+              <option value="GT3" selected>Greater than 3 (GT3)</option>
+              <option value="LE3">3 or less (LE3)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Parent Status</label>
+            <select name="Pstatus">
+              <option value="T" selected>Living Together</option>
+              <option value="A">Apart</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Mother's Education</label>
+            <select name="Medu">
+              <option value="0">None</option>
+              <option value="1">Primary (4th grade)</option>
+              <option value="2">5th–9th grade</option>
+              <option value="3" selected>Secondary</option>
+              <option value="4">Higher education</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Father's Education</label>
+            <select name="Fedu">
+              <option value="0">None</option>
+              <option value="1">Primary (4th grade)</option>
+              <option value="2">5th–9th grade</option>
+              <option value="3" selected>Secondary</option>
+              <option value="4">Higher education</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Mother's Job</label>
+            <select name="Mjob">
+              <option value="at_home">At Home</option>
+              <option value="health">Healthcare</option>
+              <option value="services">Civil Services</option>
+              <option value="teacher">Teacher</option>
+              <option value="other" selected>Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Father's Job</label>
+            <select name="Fjob">
+              <option value="at_home">At Home</option>
+              <option value="health">Healthcare</option>
+              <option value="services">Civil Services</option>
+              <option value="teacher">Teacher</option>
+              <option value="other" selected>Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Guardian</label>
+            <select name="guardian">
+              <option value="mother" selected>Mother</option>
+              <option value="father">Father</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Family Support</label>
+            <select name="famsup">
+              <option value="yes" selected>Yes</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section: Social & Lifestyle -->
+      <div class="card mb-24">
+        <div class="section-title">Social &amp; Lifestyle</div>
+        <div class="form-grid three">
+          <div class="form-group">
+            <label>Family Relationship Quality (1–5)</label>
+            <input type="number" name="famrel" value="3" min="1" max="5" required />
+          </div>
+          <div class="form-group">
+            <label>Free Time (1–5)</label>
+            <input type="number" name="freetime" value="3" min="1" max="5" required />
+          </div>
+          <div class="form-group">
+            <label>Going Out with Friends (1–5)</label>
+            <input type="number" name="goout" value="3" min="1" max="5" required />
+          </div>
+          <div class="form-group">
+            <label>Weekday Alcohol Consumption (1–5)</label>
+            <input type="number" name="Dalc" value="1" min="1" max="5" required />
+          </div>
+          <div class="form-group">
+            <label>Weekend Alcohol Consumption (1–5)</label>
+            <input type="number" name="Walc" value="1" min="1" max="5" required />
+          </div>
+          <div class="form-group">
+            <label>Current Health Status (1–5)</label>
+            <input type="number" name="health" value="3" min="1" max="5" required />
+          </div>
+        </div>
+
+        <div class="form-grid mt-16">
+          <div class="form-group">
+            <label>Internet Access at Home</label>
+            <select name="internet">
+              <option value="yes" selected>Yes</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>In a Romantic Relationship</label>
+            <select name="romantic">
+              <option value="no" selected>No</option>
+              <option value="yes">Yes</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Extracurricular Activities</label>
+            <select name="activities">
+              <option value="no" selected>No</option>
+              <option value="yes">Yes</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Attended Nursery School</label>
+            <select name="nursery">
+              <option value="yes" selected>Yes</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px;">
+        <button type="submit" class="btn btn-primary" id="submit-btn" style="flex:1;">
+          Run Prediction
+        </button>
+        <button type="reset" class="btn btn-outline" onclick="clearResult()">Reset</button>
+      </div>
+    </form>
+
+    <!-- ── Result Panel ────────────────────────────────────────────────── -->
+    <div>
+      <!-- Placeholder -->
+      <div id="result-placeholder" class="card" style="text-align:center;padding:60px 24px;color:var(--muted);">
+        <div style="font-size:40px;margin-bottom:12px;">🎯</div>
+        <p>Fill in the form and click<br><strong style="color:var(--text);">Run Prediction</strong></p>
+      </div>
+
+      <!-- Result -->
+      <div id="result-panel" class="result-panel hidden">
+        <div class="risk-score-block">
+          <div class="pct" id="res-pct"></div>
+          <div class="level-label">
+            <span class="badge" id="res-badge"></span>
+            <span style="margin-left:8px;font-size:12px;color:var(--muted);" id="res-stage-label">Risk Score</span>
+          </div>
+        </div>
+
+        <!-- Multi-stage comparison chart -->
+        <div id="chart-block" class="hidden">
+          <div class="section-title mt-24">Risk Across the Semester</div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;">
+            <canvas id="risk-chart" height="180"></canvas>
+          </div>
+          <div id="stage-list" style="margin-top:10px;font-size:12px;color:var(--muted);"></div>
+        </div>
+
+        <div class="section-title mt-24">Top Risk Drivers (SHAP) <span class="text-muted" id="res-shap-stage" style="font-weight:400;font-size:11px;"></span></div>
+        <div id="res-shap"></div>
+
+        <div class="section-title mt-24">Intervention Plan</div>
+        <div id="res-interventions"></div>
+
+        <a href="dashboard.html" class="btn btn-outline mt-24" style="display:block;text-align:center;">
+          View Dashboard →
+        </a>
+      </div>
+    </div>
+
+  </div><!-- end grid -->
+</main>
+
+<div id="toast"></div>
+
+<script src="app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+  requireAuth();
+  document.getElementById("nav-user").textContent = localStorage.getItem("user_name") || "";
+
+  let riskChart = null;
+
+  async function handlePredict(e) {
+    e.preventDefault();
+    const btn = document.getElementById("submit-btn");
+    btn.textContent = "Running…";
+    btn.disabled = true;
+
+    const fd   = new FormData(e.target);
+    const body = {};
+    // Optional grades — only include if user entered a value
+    const optionalNums = ["G1", "G2"];
+    const numFields = ["age","Medu","Fedu","traveltime","studytime","failures",
+                       "famrel","freetime","goout","Dalc","Walc","health","absences"];
+
+    fd.forEach((v, k) => {
+      if (optionalNums.includes(k)) {
+        const s = String(v).trim();
+        if (s !== "") body[k] = parseInt(s, 10);
+        return;
+      }
+      body[k] = numFields.includes(k) ? parseInt(v, 10) : v;
+    });
+
+    const res = await apiFetch("/predict", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    btn.textContent = "Run Prediction";
+    btn.disabled = false;
+
+    if (!res) return;
+    showResult(res);
+  }
+
+  function showResult(payload) {
+    const results = payload.results || [];
+    const canonical = payload.canonical || results[results.length - 1];
+
+    document.getElementById("result-placeholder").classList.add("hidden");
+    const panel = document.getElementById("result-panel");
+    panel.classList.remove("hidden");
+
+    // Headline score = latest stage available
+    const pct   = (canonical.risk_prob * 100).toFixed(1);
+    const level = canonical.risk_level;
+
+    const pctEl = document.getElementById("res-pct");
+    pctEl.textContent = `${pct}%`;
+    pctEl.className   = `pct ${level.toLowerCase()}`;
+
+    const badge = document.getElementById("res-badge");
+    badge.textContent = `${level} Risk`;
+    badge.className   = `badge badge-${level}`;
+    document.getElementById("res-stage-label").textContent =
+      `${canonical.stage_label} model`;
+
+    // Comparison chart
+    renderChart(results);
+
+    // SHAP bars for the canonical (latest) stage
+    document.getElementById("res-shap-stage").textContent = `— ${canonical.stage_label}`;
+    const maxShap = Math.max(...Object.values(canonical.shap_top5).map(v => Math.abs(v.shap)));
+    document.getElementById("res-shap").innerHTML = Object.entries(canonical.shap_top5)
+      .map(([feat, info]) => {
+        const w   = (Math.abs(info.shap) / maxShap * 100).toFixed(0);
+        const cls = info.shap > 0 ? "pos" : "neg";
+        const dir = info.shap > 0 ? "+risk" : "−risk";
+        const col = info.shap > 0 ? "var(--red)" : "var(--green)";
+        const val = info.value === null ? "—" : info.value;
+        return `
+          <div class="shap-bar-wrap">
+            <div class="shap-bar-label">
+              <span>${feat} <span class="text-muted">(${val})</span></span>
+              <span style="color:${col}">${dir}</span>
+            </div>
+            <div class="shap-bar-track">
+              <div class="shap-bar-fill ${cls}" style="width:${w}%;"></div>
+            </div>
+          </div>`;
+      }).join("");
+
+    document.getElementById("res-interventions").innerHTML =
+      canonical.interventions.map(i => `<div class="intervention-item">${i}</div>`).join("");
+
+    panel.scrollIntoView({ behavior: "smooth", block: "start" });
+    showToast(`Prediction complete — ran ${results.length} model${results.length>1?"s":""}`);
+  }
+
+  function levelColor(level) {
+    return level === "High"   ? "#F44336"
+         : level === "Medium" ? "#FF9800"
+         : "#4CAF50";
+  }
+
+  function renderChart(results) {
+    const block = document.getElementById("chart-block");
+    if (!results || results.length === 0) {
+      block.classList.add("hidden");
+      return;
+    }
+    block.classList.remove("hidden");
+
+    const labels = results.map(r => r.stage_label);
+    const data   = results.map(r => +(r.risk_prob * 100).toFixed(1));
+    const colors = results.map(r => levelColor(r.risk_level));
+
+    if (riskChart) riskChart.destroy();
+    const ctx = document.getElementById("risk-chart").getContext("2d");
+    riskChart = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels,
+        datasets: [{
+          label: "Risk %",
+          data,
+          backgroundColor: colors,
+          borderRadius: 6,
+          maxBarThickness: 60,
+        }],
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (c) => `${c.parsed.y}% — ${results[c.dataIndex].risk_level} risk`,
+            },
+          },
+        },
+        scales: {
+          y: {
+            beginAtZero: true, max: 100,
+            ticks: { color: "#888", callback: v => v + "%" },
+            grid:  { color: "rgba(255,255,255,0.06)" },
+          },
+          x: {
+            ticks: { color: "#ccc" },
+            grid:  { display: false },
+          },
+        },
+      },
+    });
+
+    document.getElementById("stage-list").innerHTML = results
+      .map(r => `<div>• <strong>${r.stage_label}:</strong> ${(r.risk_prob*100).toFixed(1)}% (${r.risk_level})</div>`)
+      .join("");
+  }
+
+  function clearResult() {
+    document.getElementById("result-placeholder").classList.remove("hidden");
+    document.getElementById("result-panel").classList.add("hidden");
+    if (riskChart) { riskChart.destroy(); riskChart = null; }
+  }
+</script>
+</body>
+</html>

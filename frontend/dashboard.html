@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FAILSAFE — Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="page">
+
+<!-- Navbar -->
+<nav>
+  <div class="container inner">
+    <a href="dashboard.html" class="brand mono">FAILSAFE</a>
+    <div style="display:flex;align-items:center;">
+      <div class="links">
+        <a href="dashboard.html" class="active">Dashboard</a>
+        <a href="predict.html">New Prediction</a>
+      </div>
+      <span id="nav-user"></span>
+      <button id="btn-logout" onclick="logout()">Logout</button>
+    </div>
+  </div>
+</nav>
+
+<!-- Content -->
+<main class="container" style="padding-top:0;padding-bottom:48px;">
+  <div class="page-header">
+    <div>
+      <h2>Risk Dashboard</h2>
+      <div class="sub">Overview of all student risk predictions</div>
+    </div>
+    <a href="predict.html" class="btn btn-primary">+ New Prediction</a>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-grid">
+    <div class="stat-card total">
+      <div class="label">Total Students</div>
+      <div class="value" id="stat-total">—</div>
+    </div>
+    <div class="stat-card high">
+      <div class="label">High Risk</div>
+      <div class="value" id="stat-high">—</div>
+    </div>
+    <div class="stat-card medium">
+      <div class="label">Medium Risk</div>
+      <div class="value" id="stat-medium">—</div>
+    </div>
+    <div class="stat-card low">
+      <div class="label">Low Risk</div>
+      <div class="value" id="stat-low">—</div>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="card">
+    <div class="flex justify-between items-center mb-16">
+      <h3 style="font-size:15px;">Recent Predictions</h3>
+      <input
+        type="text"
+        id="search-input"
+        placeholder="Search student..."
+        oninput="filterTable()"
+        style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;
+               color:var(--text);padding:7px 12px;font-size:13px;font-family:inherit;width:200px;"
+      />
+    </div>
+
+    <div id="table-loading" style="text-align:center;padding:40px;color:var(--muted);">
+      <div class="spinner"></div>
+    </div>
+
+    <div id="table-wrap" class="table-wrap hidden">
+      <table id="pred-table">
+        <thead>
+          <tr>
+            <th>Student</th>
+            <th>Subject</th>
+            <th>Risk Score</th>
+            <th>Risk Level</th>
+            <th>Date</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="pred-body"></tbody>
+      </table>
+
+      <div id="empty-state" class="empty-state hidden">
+        <div class="icon">📋</div>
+        <p>No predictions yet. <a href="predict.html" style="color:var(--text);">Predict a student</a></p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Detail Modal -->
+<div id="modal-overlay" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:flex;align-items:center;justify-content:center;padding:24px;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;width:100%;max-width:580px;max-height:80vh;overflow-y:auto;padding:28px;">
+    <div class="flex justify-between items-center mb-16">
+      <h3 id="modal-name" style="font-size:16px;"></h3>
+      <button onclick="closeModal()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;">✕</button>
+    </div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="app.js"></script>
+<script>
+  requireAuth();
+
+  document.getElementById("nav-user").textContent = localStorage.getItem("user_name") || "";
+
+  let allPredictions = [];
+
+  async function loadDashboard() {
+    const [statsRes, predsRes] = await Promise.all([
+      apiFetch("/dashboard/stats"),
+      apiFetch("/predictions"),
+    ]);
+
+    if (statsRes) {
+      document.getElementById("stat-total").textContent  = statsRes.total;
+      document.getElementById("stat-high").textContent   = statsRes.high;
+      document.getElementById("stat-medium").textContent = statsRes.medium;
+      document.getElementById("stat-low").textContent    = statsRes.low;
+    }
+
+    document.getElementById("table-loading").classList.add("hidden");
+    document.getElementById("table-wrap").classList.remove("hidden");
+
+    if (predsRes && predsRes.length > 0) {
+      allPredictions = predsRes;
+      renderTable(predsRes);
+    } else {
+      document.getElementById("pred-table").classList.add("hidden");
+      document.getElementById("empty-state").classList.remove("hidden");
+    }
+  }
+
+  function escapeHTML(s) {
+    return String(s).replace(/[&<>"']/g, c => (
+      { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]
+    ));
+  }
+
+  function renderTable(data) {
+    const body = document.getElementById("pred-body");
+    body.innerHTML = data.map(p => {
+      const pct  = (p.risk_prob * 100).toFixed(1);
+      const date = p.created_at ? new Date(p.created_at).toLocaleDateString() : "—";
+      const barColor = p.risk_level === "High" ? "var(--red)" : p.risk_level === "Medium" ? "var(--orange)" : "var(--green)";
+      return `
+        <tr>
+          <td><strong>${escapeHTML(p.student_name)}</strong></td>
+          <td style="text-transform:capitalize;">${escapeHTML(p.subject)}</td>
+          <td>
+            <span class="risk-bar-outer">
+              <span class="risk-bar-inner" style="width:${pct}%;background:${barColor};"></span>
+            </span>
+            ${pct}%
+          </td>
+          <td><span class="badge badge-${p.risk_level}">${p.risk_level}</span></td>
+          <td class="text-muted text-sm">${date}</td>
+          <td style="display:flex;gap:8px;">
+            <button class="btn btn-outline btn-sm" onclick="showDetail(${p.id})">View</button>
+            <button class="btn btn-danger btn-sm" onclick="deletePred(${p.id})">Delete</button>
+          </td>
+        </tr>`;
+    }).join("");
+  }
+
+  function filterTable() {
+    const q = document.getElementById("search-input").value.toLowerCase();
+    renderTable(allPredictions.filter(p => p.student_name.toLowerCase().includes(q)));
+  }
+
+  function showDetail(id) {
+    const p = allPredictions.find(x => x.id === id);
+    if (!p) return;
+    document.getElementById("modal-name").textContent = p.student_name;
+    const maxShap = Math.max(...Object.values(p.shap_top5).map(v => Math.abs(v.shap)));
+
+    const shapHTML = Object.entries(p.shap_top5).map(([feat, info]) => {
+      const pct = (Math.abs(info.shap) / maxShap * 100).toFixed(0);
+      const cls = info.shap > 0 ? "pos" : "neg";
+      const dir = info.shap > 0 ? "+risk" : "−risk";
+      return `
+        <div class="shap-bar-wrap">
+          <div class="shap-bar-label">
+            <span>${escapeHTML(feat)} <span class="text-muted">(${info.value})</span></span>
+            <span style="color:${cls === 'pos' ? 'var(--red)' : 'var(--green)'}">${dir} ${info.shap.toFixed(3)}</span>
+          </div>
+          <div class="shap-bar-track">
+            <div class="shap-bar-fill ${cls}" style="width:${pct}%;"></div>
+          </div>
+        </div>`;
+    }).join("");
+
+    const intHTML = p.interventions.map(i => `<div class="intervention-item">${escapeHTML(i)}</div>`).join("");
+    const pct = (p.risk_prob * 100).toFixed(1);
+    const lvlClass = p.risk_level.toLowerCase();
+
+    document.getElementById("modal-body").innerHTML = `
+      <div class="risk-score-block">
+        <div class="pct ${lvlClass}">${pct}%</div>
+        <div class="level-label"><span class="badge badge-${p.risk_level}">${p.risk_level} Risk</span></div>
+      </div>
+      <div class="section-title mt-24">SHAP — Top Drivers</div>
+      ${shapHTML}
+      <div class="section-title mt-24">Intervention Plan</div>
+      ${intHTML}
+    `;
+    document.getElementById("modal-overlay").classList.remove("hidden");
+  }
+
+  function closeModal() {
+    document.getElementById("modal-overlay").classList.add("hidden");
+  }
+
+  document.getElementById("modal-overlay").addEventListener("click", function(e) {
+    if (e.target === this) closeModal();
+  });
+
+  async function deletePred(id) {
+    if (!confirm("Delete this prediction?")) return;
+    const res = await apiFetch(`/predictions/${id}`, { method: "DELETE" });
+    if (res) {
+      showToast("Prediction deleted");
+      loadDashboard();
+    }
+  }
+
+  loadDashboard();
+</script>
+</body>
+</html>
